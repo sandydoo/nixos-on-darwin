@@ -13,14 +13,12 @@ let efiVariableStorePath = vmBundlePath + "NVRAM"
 let mainDiskImagePath = vmBundlePath + "Disk.img"
 let machineIdentifierPath = vmBundlePath + "MachineIdentifier"
 
-guard CommandLine.argc == 2 else {
-    printUsageAndExit()
-}
-
-let isoURL = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: false)
-
 enum VMError: Error {
     case cannotCreateVMBundle
+    
+    // Rosetta
+    case rosettaIsNotSupported
+    case rosettaIsNotAvailable
     
     // Machine Identifier
     case cannotGetMachineIdentifierData
@@ -42,6 +40,12 @@ enum VMError: Error {
     case cannotStartVirtualMachine(Error)
 }
 
+guard CommandLine.argc == 2 else {
+    printUsageAndExit()
+}
+
+let isoURL = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: false)
+
 let vmExists = FileManager.default.fileExists(atPath: vmBundlePath)
 
 if !vmExists {
@@ -54,7 +58,27 @@ if !vmExists {
     }
 }
 
-let configuration = try createVMConfiguration()
+do {
+    print("Installing Rosetta...")
+    try installRosetta()
+} catch let error {
+    fatalError(error.localizedDescription)
+}
+
+let configuration = try createVMConfiguration(isoURL: isoURL, vmExists: vmExists)
+
+let tag = "ROSETTA"
+do {
+    let _ = try VZVirtioFileSystemDeviceConfiguration.validateTag(tag)
+    let rosettaDirectoryShare = try VZLinuxRosettaDirectoryShare()
+    let fileSystemDevice = VZVirtioFileSystemDeviceConfiguration(tag: tag)
+    fileSystemDevice.share = rosettaDirectoryShare
+
+    configuration.directorySharingDevices = [ fileSystemDevice ]
+} catch {
+    throw VMError.rosettaIsNotAvailable
+}
+
 do {
     try configuration.validate()
 } catch {
@@ -67,14 +91,17 @@ let delegate = Delegate()
 virtualMachine.delegate = delegate
 
 virtualMachine.start { (result) in
-    if case let .failure(error) = result {
-        print("Failed to start the virtual machine")
-        print(error)
-        exit(EXIT_FAILURE)
+    switch result {
+    case let .failure(error):
+        fatalError(error.localizedDescription)
+
+    default:
+        print("Launching VM...")
     }
 }
-
+    
 RunLoop.main.run(until: Date.distantFuture)
+
 
 // MARK: - Virtual Machine Delegate
 
@@ -89,6 +116,45 @@ extension Delegate: VZVirtualMachineDelegate {
 
 // MARK: - Helper functions
 
+func installRosetta() throws {
+    let rosettaAvailability = VZLinuxRosettaDirectoryShare.availability
+
+    switch rosettaAvailability {
+    case .notSupported:
+        throw VMError.rosettaIsNotSupported
+
+    case .notInstalled:
+        // Ask the user for permission to install Rosetta, and
+        // start the installation process if they grant permission.
+        VZLinuxRosettaDirectoryShare.installRosetta(completionHandler: { error in
+            let vzerror = error as! VZError
+            switch vzerror.code {
+            case .networkError:
+                // A network error prevented the download from completing successfully.
+                fatalError("There was a network error while installing Rosetta. Please try again.")
+            case .outOfDiskSpace:
+                // Not enough disk space on the system volume to complete the installation.
+                fatalError("Your system does not have enough disk space to install Rosetta")
+            case .operationCancelled:
+                break
+            case .notSupported:
+                break
+            default:
+                break
+            }
+        })
+        
+        break
+
+    case .installed:
+        break // Ready to go.
+    
+    @unknown default:
+        throw VMError.rosettaIsNotAvailable
+    }
+
+}
+
 func createVMBundle() throws {
     do {
         try FileManager.default.createDirectory(atPath: vmBundlePath, withIntermediateDirectories: true)
@@ -97,7 +163,7 @@ func createVMBundle() throws {
     }
 }
 
-func createVMConfiguration() throws -> VZVirtualMachineConfiguration {
+func createVMConfiguration(isoURL: URL, vmExists: Bool) throws -> VZVirtualMachineConfiguration {
     let bootloader = VZEFIBootLoader()
     let platform = VZGenericPlatformConfiguration()
     
@@ -111,7 +177,7 @@ func createVMConfiguration() throws -> VZVirtualMachineConfiguration {
 
     // Create disks
     let disksArray = NSMutableArray()
-    disksArray.add(try createUSBMassStorageDeviceConfiguration())
+    disksArray.add(try createUSBMassStorageDeviceConfiguration(isoURL: isoURL))
     disksArray.add(try createBlockDeviceConfiguration(diskImagePath: mainDiskImagePath))
     guard let disks = disksArray as? [VZStorageDeviceConfiguration] else {
         throw VMError.cannotCreateDiskArray
@@ -213,7 +279,7 @@ func createBlockDeviceConfiguration(diskImagePath: String) throws -> VZVirtioBlo
     return VZVirtioBlockDeviceConfiguration(attachment: diskAttachment)
 }
 
-func createUSBMassStorageDeviceConfiguration() throws -> VZUSBMassStorageDeviceConfiguration {
+func createUSBMassStorageDeviceConfiguration(isoURL: URL) throws -> VZUSBMassStorageDeviceConfiguration {
    guard let intallerDiskAttachment = try? VZDiskImageStorageDeviceAttachment(url: isoURL, readOnly: true) else {
        print("Failed to create usb storage device")
        exit(EXIT_FAILURE)
