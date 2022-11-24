@@ -192,6 +192,7 @@ func createVMConfiguration(isoURL: URL, vmExists: Bool) throws -> VZVirtualMachi
     configuration.storageDevices = disks
     configuration.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
     configuration.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
+    configuration.networkDevices = [createNetworkDeviceConfiguration()]
     
     return configuration
 }
@@ -286,6 +287,13 @@ func createUSBMassStorageDeviceConfiguration(isoURL: URL) throws -> VZUSBMassSto
    }
 
    return VZUSBMassStorageDeviceConfiguration(attachment: intallerDiskAttachment)
+}
+
+func createNetworkDeviceConfiguration() -> VZVirtioNetworkDeviceConfiguration {
+    let networkDevice = VZVirtioNetworkDeviceConfiguration()
+    networkDevice.attachment = VZNATNetworkDeviceAttachment()
+
+    return networkDevice
 }
 
 func printUsageAndExit() -> Never {
