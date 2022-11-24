@@ -67,7 +67,7 @@ do {
 
 let configuration = try createVMConfiguration(isoURL: isoURL, vmExists: vmExists)
 
-let tag = "ROSETTA"
+let tag = "rosetta"
 do {
     let _ = try VZVirtioFileSystemDeviceConfiguration.validateTag(tag)
     let rosettaDirectoryShare = try VZLinuxRosettaDirectoryShare()
