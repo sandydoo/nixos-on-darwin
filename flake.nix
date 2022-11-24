@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-22.05";
+    nixpkgs.url = "github:sandydoo/nixpkgs/feature/support-rosetta";
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -16,12 +16,16 @@
     rec {
       packages.${system}.default = nixos-generators.nixosGenerate {
         inherit system pkgs;
+
         modules = [
-          ./modules/apple-vm.nix
-          ({ pkgs, ... }: {
+          ({ pkgs, modulesPath, ... }: {
+            boot.loader.timeout = 0;
+
+            virtualisation.rosetta.enable = true;
+
             environment.systemPackages = [
-              x86Pkgs.bottom
               pkgs.file
+              x86Pkgs.bottom
             ];
 
             users.users.root.password = "nixos";

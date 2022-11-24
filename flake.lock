@@ -38,16 +38,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1669152211,
-        "narHash": "sha256-mBLiTNTzrtlYPHF0bL8NeGA4n8K5b35fYVdqaTIIkgc=",
-        "owner": "nixos",
+        "lastModified": 1669291878,
+        "narHash": "sha256-8sDHQbfDl7hvpLFv0CJi0KDaCfj5fZIkYyZ+g6/mzWk=",
+        "owner": "sandydoo",
         "repo": "nixpkgs",
-        "rev": "56ca700ceabcfa15396bcf581a1296e8e27ad677",
+        "rev": "8a63bba5e79b1f7b6f8726091b3cb9aebc65ca71",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
-        "ref": "nixos-22.05",
+        "owner": "sandydoo",
+        "ref": "feature/support-rosetta",
         "repo": "nixpkgs",
         "type": "github"
       }
